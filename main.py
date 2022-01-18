@@ -1,18 +1,23 @@
-import mido
+from midi import readCsvFile
 import pygame
 
 def main ():
-    filename = "./IMSLP212667-WIMA.7b20-bwv542-a4-1.mid"
-    notes = list ( getNotes ( filename ) )
+    filename = "./great_fugue.csv"
 
-    note_values_played = { note [ 0 ] for note in notes }
+    # get notes from CSV file
+    notes = readCsvFile ( filename )
 
-    min_note = min ( note_values_played )
-    max_note = max ( note_values_played )
+    # get metadata from CSV file
+    max_note, min_note, duration, num_channels = next ( notes )
+
+    # get note range
     note_range = max_note - min_note
 
+    # initialise pygame
     pygame.init ()
 
+    # colours used to differentiate between channels. If there are more
+    # channels than colours then colours are reused.
     channel_colours = [
         pygame.Color ( 'blue' ),
         pygame.Color ( 'brown3' ),
@@ -21,69 +26,71 @@ def main ():
         pygame.Color ( 'cyan' )
         ]
 
+    # width and height of window
     width = 400
     height = 400
 
-    screen = pygame.display.set_mode ( [ width, height ] )
+    # how much to magnify the time, in pixels per second
+    tick_magnify = 50
+    # how much 'time' is visible on the screen - i.e. the time duration
+    # that the width of the screen represents
+    tick_period_on_screen = int ( width / tick_magnify )
 
-    time_magnify = 50
+    # how thick to draw each note
     note_thickness = height / note_range
 
-    time_offset = notes [ 0 ] [ 1 ]
-    y_offset = 0
+    # how far we are through the track/piece/file timewise
+    tick_offset = 0
 
-    speed = 0.003
+    # beats per minute
+    #bpm = 120
+
+    speed = 0.001
 
     num_colours = len ( channel_colours )
 
+    notes_loaded = []
+
+    screen = pygame.display.set_mode ( [ width, height ] )
+
+    current = next ( notes )
+
+    print ( tick_period_on_screen )
+
     running = True
-    while running:
+    while tick_offset < duration and running == True:
         for event in pygame.event.get ():
             if event.type == pygame.QUIT:
                 running = False
 
+        if int ( tick_offset ) % tick_period_on_screen == 0:
+            # unload notes not on screen
+            while notes_loaded and notes_loaded [ 0 ] [ 1 ] < tick_offset - tick_period_on_screen:
+                notes_loaded.pop ( 0 )
+
+            # load notes in advance
+            while current [ 1 ] < tick_offset + tick_period_on_screen * 3:
+                notes_loaded.append ( current )
+                current = next ( notes )
+
         screen.fill ( ( 255, 255, 255 ) )
 
-        for note in notes:
+        for note in notes_loaded:
             pygame.draw.rect ( screen,
-                    channel_colours [ note [ 3 ] % num_colours ],
-                    ( ( note [ 1 ] - time_offset ) * time_magnify,
-                        height - ( note [ 0 ] - min_note ) * note_thickness + y_offset,
-                        note [ 2 ] * time_magnify,
+                    channel_colours [ int ( note [ 3 ] ) % num_colours ],
+                    ( ( note [ 1 ] - tick_offset ) * tick_magnify,
+                        height - ( note [ 0 ] - min_note ) * note_thickness,
+                        note [ 2 ] * tick_magnify,
                         note_thickness )
                     )
 
         pygame.display.flip ()
 
-        time_offset += speed
+        tick_offset += speed
+
+    print ( tick_offset )
 
 
-def getNotes ( filename ):
-    midi = mido.MidiFile ( filename, clip=True )
-
-    current = []
-    time = 0
-
-    for message in midi:
-        if time == 0:
-            print ( message )
-        if hasattr ( message, "note" ):
-            time += message.time
-
-            for note in current:
-                note [ 2 ] += message.time
-
-            if message.type == "note_on":
-                current.append ( [ message.note, time, 0, message.channel ] )
-            elif message.type == "note_off":
-                i = 0
-                while i < len ( current ):
-                    if current [ i ] [ 0 ] == message.note:
-                        yield current [ i ]
-                        
-                        current.pop ( i )
-                    else:
-                        i += 1
 
 #def calculateMidiFileDuration ( midi: mido.MidiFile ):
 #    return max ( [ calculateTrackDuration ( track ) for track in midi.tracks ] )
