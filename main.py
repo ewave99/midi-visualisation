@@ -1,5 +1,6 @@
 from midi import readCsvFile
 import pygame
+from pygame.locals import *
 
 def main ():
     filename = "./great_fugue.csv"
@@ -49,6 +50,8 @@ def main ():
 
     num_colours = len ( channel_colours )
 
+    channels_visible = [ True for i in range ( 9 ) ]
+
     notes_loaded = []
 
     screen = pygame.display.set_mode ( [ width, height ] )
@@ -60,8 +63,17 @@ def main ():
     running = True
     while tick_offset < duration and running == True:
         for event in pygame.event.get ():
-            if event.type == pygame.QUIT:
+            if event.type == QUIT:
                 running = False
+            elif event.type == KEYDOWN:
+                if K_0 <= event.key <= K_9:
+                    channel = event.key - K_0
+                    channels_visible [ channel ] = not channels_visible [ channel ]
+                elif event.key == K_ESCAPE:
+                    running = False
+
+        if not running:
+            break
 
         if int ( tick_offset ) % tick_period_on_screen == 0:
             # unload notes not on screen
@@ -76,13 +88,14 @@ def main ():
         screen.fill ( ( 255, 255, 255 ) )
 
         for note in notes_loaded:
-            pygame.draw.rect ( screen,
-                    channel_colours [ int ( note [ 3 ] ) % num_colours ],
-                    ( ( note [ 1 ] - tick_offset ) * tick_magnify,
-                        height - ( note [ 0 ] - min_note ) * note_thickness,
-                        note [ 2 ] * tick_magnify,
-                        note_thickness )
-                    )
+            if channels_visible [ int ( note [ 3 ] ) ]:
+                pygame.draw.rect ( screen,
+                        channel_colours [ int ( note [ 3 ] ) % num_colours ],
+                        ( ( note [ 1 ] - tick_offset ) * tick_magnify,
+                            height - ( note [ 0 ] - min_note ) * note_thickness,
+                            note [ 2 ] * tick_magnify,
+                            note_thickness )
+                        )
 
         pygame.display.flip ()
 
